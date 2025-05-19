@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Space Crash Game</title>
+    <style>
+        :root {
+            --hue-start: 0;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: white;
+            overflow: hidden; /* Mencegah scrollbar karena animasi */
+        }
+
+        .game-container {
+            width: 100vw;
+            max-width: 450px; /* Batas lebar untuk tampilan seperti mobile */
+            height: 100vh;
+            max-height: 800px; /* Batas tinggi */
+            background: linear-gradient(45deg, hsl(var(--hue-start), 70%, 50%), hsl(calc(var(--hue-start) + 60), 70%, 50%), hsl(calc(var(--hue-start) + 120), 70%, 50%));
+            animation: rgbBackgroundShift 15s linear infinite;
+            display: flex;
+            flex-direction: column;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            overflow: hidden;
+            position: relative;
+        }
+
+        @keyframes rgbBackgroundShift {
+            0% { --hue-start: 0; }
+            100% { --hue-start: 360; }
+        }
+
+        .history-container {
+            display: flex;
+            padding: 8px;
+            background-color: rgba(0, 0, 0, 0.3);
+            overflow-x: auto;
+            white-space: nowrap;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .history-item {
+            padding: 5px 10px;
+            margin-right: 5px;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 0.9em;
+            cursor: default;
+            box-shadow: 0 0 5px rgba(0,0,0,0.3);
+        }
+
+        .plane-area {
+            flex-grow: 1;
+            position: relative;
+            background: radial-gradient(ellipse at bottom right,
+                        hsl(calc(var(--hue-start) + 200), 60%, 20%),
+                        hsl(calc(var(--hue-start) + 240), 70%, 10%) 70%,
+                        #000
+                    );
+            animation: rgbPlaneAreaShift 20s linear infinite alternate;
+            overflow: hidden; /* Untuk menjaga pesawat di dalam area */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        @keyframes rgbPlaneAreaShift {
+            0% { --hue-start: 200; }
+            100% { --hue-start: 280; }
+        }
+
+        .plane {
+            position: absolute;
+            bottom: 10%;
+            left: 10%;
+            font-size: 3em; /* Ukuran ikon pesawat */
+            transform-origin: center;
+            transition: transform 0.1s linear, bottom 0.1s linear, left 0.1s linear;
+            filter: hue-rotate(0deg);
+            animation: planeColorShift 5s linear infinite;
+            z-index: 10;
+        }
+
+        @keyframes planeColorShift {
+            0% { filter: hue-rotate(0deg) drop-shadow(0 0 5px hsl(0, 100%, 70%)); }
+            33% { filter: hue-rotate(120deg) drop-shadow(0 0 8px hsl(120, 100%, 70%)); }
+            66% { filter: hue-rotate(240deg) drop-shadow(0 0 5px hsl(240, 100%, 70%)); }
+            100% { filter: hue-rotate(360deg) drop-shadow(0 0 8px hsl(0, 100%, 70%)); }
+        }
+        
+        .explosion {
+            font-size: 5em;
+            animation: explodeEffect 0.5s ease-out forwards;
+            color: orange;
+            text-shadow: 0 0 10px red, 0 0 20px yellow;
+        }
+
+        @keyframes explodeEffect {
+            0% { transform: scale(0.5); opacity: 1; }
+            100% { transform: scale(2); opacity: 0; }
+        }
+
+
+        .multiplierDisplay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2.5em;
+            font-weight: bold;
+            padding: 5px 25px;
+            background-color: rgba(0,0,0,0.5);
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.7);
+            transition: color 0.3s ease, background-color 0.3s ease;
+            z-index: 5;
+        }
+
+        .statusMessage {
+            text-align: center;
+            padding: 10px;
+            font-size: 1.1em;
+            background-color: rgba(0, 0, 0, 0.4);
+            font-weight: bold;
+        }
+
+        .controls {
+            padding: 15px;
+            background-color: rgba(0,0,0,0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        input[type="number"] {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid rgba(255,255,255,0.3);
+            background-color: rgba(255,255,255,0.1);
+            color: white;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+        input[type="number"]::placeholder {
+            color: rgba(255,255,255,0.5);
+        }
+
+        button {
+            padding: 12px 15px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+            color: white;
+        }
+        button:active {
+            transform: scale(0.98);
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #bet-button {
+            background-color: #4CAF50; /* Hijau */
+        }
+        #bet-button:hover:not(:disabled) {
+            background-color: #45a049;
+        }
+
+        #cashout-button {
+            background-color: #4CAF50; /* Hijau */
+        }
+        #cashout-button:hover:not(:disabled) {
+            background-color: #e53935;
+        }
+        
+        .info-bar {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 15px;
+            background-color: rgba(0,0,0,0.3);
+            font-size: 0.9em;
+        }
+        #potentialWinDisplay {
+            text-align: right;
+        }
+        #player-info {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(0,0,0,0.5);
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.9em;
+            z-index: 20;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="game-container">
+        <div id="player-info">Saldo: Rp 1.000.000</div>
+        <div class="history-container" id="historyContainer">
+            <!-- Riwayat akan ditambahkan di sini oleh JavaScript -->
+        </div>
+
+        <div class="plane-area" id="planeArea">
+            <div id="multiplierDisplay">1.00x</div>
+            <div class="plane" id="plane">🚀</div> <!-- Ganti dengan ikon space yang lebih keren jika ada -->
+        </div>
+
+        <div class="statusMessage" id="statusMessage">Menunggu ronde baru...</div>
+
+        <div class="controls">
+            <div class="input-group">
+                <input type="number" id="betAmount" placeholder="Jumlah Taruhan (Min: 1000)" min="1000" step="1000" value="1000">
+                <button id="bet-button">Pasang Taruhan</button>
+            </div>
+            <button id="cashout-button" disabled>Cash Out</button>
+        </div>
+        <div class="info-bar">
+            <span id="potentialWinDisplay">Potensi Menang: Rp 0</span>
+        </div>
+    </div>
+
+    <script>
+        // Elemen DOM
+        const gameContainer = document.querySelector('.game-container');
+        const playerInfoDisplay = document.getElementById('player-info');
+        const historyContainer = document.getElementById('historyContainer');
+        const planeArea = document.getElementById('planeArea');
+        const plane = document.getElementById('plane');
+        const multiplierDisplay = document.getElementById('multiplierDisplay');
+        const statusMessage = document.getElementById('statusMessage');
+        const betAmountInput = document.getElementById('betAmount');
+        const betButton = document.getElementById('bet-button');
+        const cashoutButton = document.getElementById('cashout-button');
+        const potentialWinDisplay = document.getElementById('potentialWinDisplay');
+
+        // State Game
+        let balance = 1000000;
+        let currentBet = 0;
+        let currentMultiplier = 1.00;
+        let crashPoint = 1.00;
+        let gameInterval = null;
+        let countdownInterval = null;
+        let gameState = 'WAITING'; // WAITING, BETTING, FLYING, CRASHED
+        let hasCashedOutThisRound = false;
+        let history = [];
+
+        // Konstanta Waktu (dalam milidetik)
+        const BETTING_TIME = 14000; // 14 detik untuk bertaruh
+        const WAIT_TIME_AFTER_CRASH = 000; // detik sebelum ronde baru
+        const MULTIPLIER_INCREMENT_INTERVAL = 100; // Interval peningkatan pengganda
+        const MIN_BET = 1000;
+
+        // Fungsi Utama
+        function formatCurrency(amount) {
+            return 'Rp ' + amount.toLocaleString('id-ID');
+        }
+
+        function updateBalanceDisplay() {
+            playerInfoDisplay.textContent = `Saldo: ${formatCurrency(balance)}`;
+        }
+
+        function updatePotentialWin() {
+            if (currentBet > 0 && gameState === 'FLYING' && !hasCashedOutThisRound) {
+                const potential = currentBet * currentMultiplier;
+                potentialWinDisplay.textContent = `Potensi Menang: ${formatCurrency(Math.floor(potential))}`;
+            } else {
+                potentialWinDisplay.textContent = 'Potensi Menang: Rp 0';
+            }
+        }
+
+        function resetPlanePosition() {
+            plane.style.bottom = '10%';
+            plane.style.left = '10%';
+            plane.style.transform = 'rotate(0deg) scale(1)';
+            plane.innerHTML = '🚀'; // Reset to plane
+            plane.classList.remove('explosion');
+        }
+
+        function animatePlane() {
+            // Animasi sederhana: pesawat naik dan sedikit ke kanan
+            const currentBottom = parseFloat(plane.style.bottom);
+            const currentLeft = parseFloat(plane.style.left);
+            
+            // Gerakan lebih lambat di awal, lalu lebih cepat
+            const speedFactor = Math.min(1 + (currentMultiplier - 1) / 10, 3); // Kecepatan meningkat hingga 3x
+
+            plane.style.bottom = `${Math.min(currentBottom + 0.2 * speedFactor, 80)}%`;
+            plane.style.left = `${Math.min(currentLeft + 0.15 * speedFactor, 70)}%`;
+            plane.style.transform = `rotate(${Math.min((currentMultiplier - 1) * 5, 20)}deg) scale(${1 + (currentMultiplier-1)/20})`;
+        }
+        
+        function showExplosion() {
+            plane.innerHTML = '💥';
+            plane.classList.add('explosion');
+            multiplierDisplay.style.color = '#FF4136'; // Merah saat crash
+            multiplierDisplay.style.backgroundColor = 'rgba(255, 65, 54, 0.3)';
+        }
+
+
+        function generateCrashPoint() {
+            // Distribusi: lebih sering jatuh di pengganda rendah, tapi sesekali tinggi.
+            // Ini adalah contoh sederhana, bisa disesuaikan.
+            const r = Math.random();
+            let point;
+            if (r < 0.60) { // 60% chance for 1.01x to 2.00x
+                point = 1.01 + Math.random() * 0.99;
+            } else if (r < 0.85) { // 25% chance for 2.01x to 5.00x
+                point = 2.01 + Math.random() * 2.99;
+            } else if (r < 0.97) { // 12% chance for 5.01x to 15.00x
+                point = 5.01 + Math.random() * 9.99;
+            } else { // 3% chance for 15.01x to 50.00x
+                point = 15.01 + Math.random() * 34.99;
+            }
+            return parseFloat(point.toFixed(2));
+        }
+        
+        function startCountdown(duration, onTick, onEnd) {
+            clearInterval(countdownInterval);
+            let timeLeft = duration / 1000;
+            onTick(timeLeft); // Panggil sekali di awal
+            countdownInterval = setInterval(() => {
+                timeLeft--;
+                onTick(timeLeft);
+                if (timeLeft <= 0) {
+                    clearInterval(countdownInterval);
+                    onEnd();
+                }
+            }, 1000);
+        }
+
+        function startNewRound() {
+            gameState = 'BETTING';
+            currentMultiplier = 1.00;
+            currentBet = 0; // Reset taruhan pemain untuk ronde ini
+            hasCashedOutThisRound = false;
+            
+            resetPlanePosition();
+            multiplierDisplay.textContent = `${currentMultiplier.toFixed(2)}x`;
+            multiplierDisplay.style.color = 'white'; // Reset warna multiplier
+            multiplierDisplay.style.backgroundColor = 'rgba(0,0,0,0.5)';
+            
+            updatePotentialWin();
+            enableBetting();
+            disableCashOut(); // Nonaktifkan cash out di awal
+
+            crashPoint = generateCrashPoint();
+            // console.log("Crash point for this round:", crashPoint); // Untuk debugging
+
+            statusMessage.textContent = `Bertaruh! Waktu tersisa: ${BETTING_TIME / 1000}s`;
+            statusMessage.style.color = '#FFD700'; // Kuning untuk betting
+            
+            startCountdown(
+                BETTING_TIME,
+                (timeLeft) => {
+                    statusMessage.textContent = `Bertaruh! Waktu tersisa: ${timeLeft}s`;
+                },
+                startFlight
+            );
+        }
+
+        function startFlight() {
+            gameState = 'FLYING';
+            disableBetting();
+            if (currentBet > 0) { // Hanya aktifkan cashout jika ada taruhan
+                enableCashOut();
+            }
+            statusMessage.textContent = 'Terbang...';
+            statusMessage.style.color = '#39CCCC'; // Biru muda untuk terbang
+
+            gameInterval = setInterval(() => {
+                currentMultiplier += 0.01 * (1 + currentMultiplier/20); // Akselerasi pengganda
+                currentMultiplier = parseFloat(currentMultiplier.toFixed(2));
+                multiplierDisplay.textContent = `${currentMultiplier.toFixed(2)}x`;
+                
+                // Ubah warna multiplier berdasarkan nilai
+                if (currentMultiplier < 2) multiplierDisplay.style.color = 'lightgreen';
+                else if (currentMultiplier < 5) multiplierDisplay.style.color = 'yellow';
+                else multiplierDisplay.style.color = 'orange';
+
+                animatePlane();
+                updatePotentialWin();
+
+                if (currentMultiplier >= crashPoint) {
+                    handleCrash();
+                }
+            }, MULTIPLIER_INCREMENT_INTERVAL);
+        }
+
+        function handleCrash() {
+            clearInterval(gameInterval);
+            gameState = 'CRASHED';
+            showExplosion();
+            
+            multiplierDisplay.textContent = `${crashPoint.toFixed(2)}x CRASH!`;
+            addHistoryItem(crashPoint, true); // Tandai sebagai crash
+
+            if (currentBet > 0 && !hasCashedOutThisRound) {
+                // Pemain tidak cash out, taruhan hangus (saldo sudah dikurangi saat pasang)
+                statusMessage.textContent = `Jatuh di ${crashPoint.toFixed(2)}x! Anda kalah ${formatCurrency(currentBet)}.`;
+                statusMessage.style.color = '#FF4136'; // Merah
+            } else if (hasCashedOutThisRound) {
+                // Pemain sudah cashout, tidak ada efek tambahan
+                // Status pesan sudah diatur di cashOut()
+            } else {
+                // Tidak ada taruhan, hanya info crash
+                statusMessage.textContent = `Pesawat jatuh di ${crashPoint.toFixed(2)}x.`;
+                statusMessage.style.color = 'white';
+            }
+
+            disableCashOut();
+            updatePotentialWin(); // Akan jadi 0 jika tidak cash out
+
+            startCountdown(
+                WAIT_TIME_AFTER_CRASH,
+                (timeLeft) => {
+                    statusMessage.innerHTML += `<br>Ronde baru dalam: ${timeLeft}s`;
+                },
+                startNewRound
+            );
+        }
+
+        function placeBet() {
+            if (gameState !== 'BETTING') {
+                alert("Anda hanya bisa bertaruh sebelum penerbangan dimulai.");
+                return;
+            }
+
+            const betValue = parseInt(betAmountInput.value);
+
+            if (isNaN(betValue) || betValue < MIN_BET) {
+                alert(`Jumlah taruhan minimal adalah ${formatCurrency(MIN_BET)}.`);
+                return;
+            }
+            if (betValue > balance) {
+                alert("Saldo tidak mencukupi.");
+                return;
+            }
+
+            currentBet = betValue;
+            balance -= currentBet;
+            updateBalanceDisplay();
+            statusMessage.textContent = `Taruhan ${formatCurrency(currentBet)} diterima! Menunggu penerbangan...`;
+            disableBetting(); // Nonaktifkan tombol setelah bertaruh
+            // Tombol cash out akan diaktifkan di startFlight jika ada taruhan
+        }
+
+        function cashOut() {
+            if (gameState !== 'FLYING' || currentBet === 0 || hasCashedOutThisRound) {
+                return; // Tidak bisa cash out jika tidak terbang, tidak ada taruhan, atau sudah cashout
+            }
+
+            const winnings = Math.floor(currentBet * currentMultiplier);
+            balance += winnings;
+            addHistoryItem(currentMultiplier, false); // Tandai sebagai cashout sukses
+
+            statusMessage.textContent = `Cash out berhasil di ${currentMultiplier.toFixed(2)}x! Anda menang ${formatCurrency(winnings)}.`;
+            statusMessage.style.color = '#2ECC40'; // Hijau untuk menang
+            
+            updateBalanceDisplay();
+            hasCashedOutThisRound = true; // Tandai sudah cash out
+            disableCashOut();
+            updatePotentialWin(); // Reset potensi menang setelah cash out
+        }
+
+        function enableBetting() {
+            betButton.disabled = false;
+            betAmountInput.disabled = false;
+        }
+
+        function disableBetting() {
+            betButton.disabled = true;
+            betAmountInput.disabled = true;
+        }
+
+        function enableCashOut() {
+            cashoutButton.disabled = false;
+        }
+        function disableCashOut() {
+            cashoutButton.disabled = true;
+        }
+
+        function addHistoryItem(multiplierVal, isCrash) {
+            const item = document.createElement('span');
+            item.classList.add('history-item');
+            item.textContent = `${multiplierVal.toFixed(2)}x`;
+            
+            if (isCrash) {
+                 // Warna RGB acak untuk crash point
+                const r = Math.floor(Math.random() * 155) + 100; // hindari terlalu gelap
+                const g = Math.floor(Math.random() * 100); 
+                const b = Math.floor(Math.random() * 100) + 50;
+                item.style.backgroundColor = `rgb(${r},${g},${b})`;
+                item.style.color = 'white'; // Kontras dengan background
+                 if (multiplierVal < 1.2) item.style.color = 'black'; // Jika bg terlalu terang
+            } else { // Cashout sukses
+                const r = Math.floor(Math.random() * 100); 
+                const g = Math.floor(Math.random() * 155) + 100;
+                const b = Math.floor(Math.random() * 100);
+                item.style.backgroundColor = `rgb(${r},${g},${b})`;
+                item.style.color = 'white';
+                if (multiplierVal < 1.5) item.style.color = 'black';
+            }
+            if (multiplierVal >= 10) item.style.border = '2px solid gold';
+
+
+            history.unshift({ value: multiplierVal, crashed: isCrash }); // Tambah ke awal array
+            if (history.length > 20) { // Batasi riwayat hingga 20 item
+                history.pop();
+            }
+            renderHistory();
+        }
+        
+        function renderHistory() {
+            historyContainer.innerHTML = ''; // Kosongkan kontainer
+            history.forEach(histItem => {
+                const item = document.createElement('span');
+                item.classList.add('history-item');
+                item.textContent = `${histItem.value.toFixed(2)}x`;
+                
+                // Atur warna berdasarkan nilai dan apakah itu crash atau cashout (jika Anda menyimpan info ini)
+                // Ini adalah pewarnaan sederhana, bisa disesuaikan
+                if (histItem.crashed) { // Crash
+                     if (histItem.value < 1.5) item.style.backgroundColor = 'rgba(255, 100, 100, 0.7)'; // Merah muda
+                     else if (histItem.value < 5) item.style.backgroundColor = 'rgba(255, 150, 50, 0.7)'; // Oranye muda
+                     else item.style.backgroundColor = 'rgba(255, 65, 54, 0.8)'; // Merah lebih solid
+                } else { // Cashout (jika Anda melacak ini secara terpisah di history)
+                     if (histItem.value < 2) item.style.backgroundColor = 'rgba(144, 238, 144, 0.7)'; // Hijau muda
+                     else if (histItem.value < 10) item.style.backgroundColor = 'rgba(50, 205, 50, 0.7)'; // Hijau lime
+                     else item.style.backgroundColor = 'rgba(0, 128, 0, 0.8)'; // Hijau tua
+                }
+                if (histItem.value >= 10 && histItem.crashed) item.style.border = '1px solid gold';
+                else if (histItem.value >= 50 && histItem.crashed) item.style.border = '2px solid cyan';
+
+
+                historyContainer.appendChild(item);
+            });
+        }
+
+
+        // Event Listeners
+        betButton.addEventListener('click', placeBet);
+        cashoutButton.addEventListener('click', cashOut);
+
+        // Inisialisasi
+        window.onload = () => {
+            updateBalanceDisplay();
+            // Atur nilai default input taruhan jika saldo mencukupi
+            if (balance >= MIN_BET) {
+                betAmountInput.value = MIN_BET;
+            } else {
+                betAmountInput.value = balance > 0 ? balance : 0; // Jika saldo kurang dari min bet
+            }
+            startNewRound(); // Mulai ronde pertama
+        };
+
+    </script>
+</body>
+</html>
