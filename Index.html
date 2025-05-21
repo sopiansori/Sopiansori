@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Crash</title>
+    <style>
+        /* CSS (Tema Luar Angkasa Gelap) */
+        :root {
+            --bg-color: #121212;
+            --text-color: #ffffff;
+            --accent-color: #4CAF50;
+            --danger-color: #f44336;
+            --secondary-color: #9e9e9e;
+        }
+
+        body {
+            font-family: sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            width: 170%;
+            max-width: 2000000px;
+            padding: 5px;
+            box-sizing: border-box;
+        }
+
+        main {
+            flex-grow: 1;
+        }
+
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+
+        .sidebar {
+            background-color: #222;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px; /* Add margin for better spacing */
+        }
+
+
+        #game-area {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-bottom: 20px;
+        }
+
+        #game-canvas {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        #multiplier-display {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3em;
+            font-weight: bold;
+            text-shadow: 0 0 10px var(--accent-color);
+            pointer-events: none; /* Make it non-interactive */
+        }
+
+        #multiplier-display.crashed {
+            color: var(--danger-color);
+            text-shadow: 0 0 10px var(--danger-color);
+        }
+
+        .balance-display {
+            font-size: 1.2em;
+            margin-bottom: 10px;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        input[type="number"] {
+            background-color: #333;
+            color: var(--text-color);
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            width: 150px;
+            text-align: center;
+        }
+
+        button {
+            background-color: var(--accent-color);
+            color: var(--text-color);
+            border: none;
+            padding: 12px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s ease;
+            margin-bottom: 10px;
+        }
+
+        button:hover {
+            background-color: #388E3C;
+        }
+
+        button.cash-out {
+            background-color: var(--danger-color);
+        }
+
+        button.cash-out:hover {
+            background-color: #D32F2F;
+        }
+
+        button:disabled {
+            background-color: var(--secondary-color);
+            cursor: not-allowed;
+        }
+
+        .status {
+            margin-bottom: 10px;
+        }
+
+        .history {
+            margin-top: 20px;
+        }
+
+        .history-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .history-list li {
+            padding: 8px 12px;
+            border-radius: 5px;
+            margin-bottom: 5px;
+            background-color: #333;
+            color: var(--text-color);
+        }
+
+        .history-list li.green {
+            background-color: rgba(76, 175, 80, 0.2); /* Green tint */
+            color: var(--accent-color);
+        }
+
+        .history-list li.red {
+            background-color: rgba(244, 67, 54, 0.2); /* Red tint */
+            color: var(--danger-color);
+        }
+
+
+        /* Responsif */
+        @media (min-width: 768px) {
+            .game-container {
+                flex-direction: row;
+                align-items: flex-start;
+            }
+
+            .main-content {
+                flex: 2;
+                margin-right: 20px;
+                align-items: stretch; /* Allow content to stretch */
+            }
+
+            .sidebar {
+                flex: 1;
+                margin-top: 0;
+            }
+
+            #game-area {
+                margin-bottom: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="game-container">
+        <main class="main-content">
+            <div id="game-area">
+                <canvas id="game-canvas"></canvas>
+                <div id="multiplier-display">1.00x</div>
+            </div>
+
+            <div class="balance-display">Saldo: <span id="balance">100000</span></div>
+
+            <div class="controls">
+                <input type="number" id="bet-amount" value="1000">
+                <button id="place-bet-button">Pasang Taruhan</button>
+                <button id="cash-out-button" class="cash-out" disabled>Cash Out</button>
+            </div>
+
+            <div class="status" id="status-message">Memuat...</div>
+        </main>
+
+        <aside class="sidebar">
+            <h3>Riwayat</h3>
+            <ul class="history-list" id="history-list">
+                <!-- Riwayat akan ditampilkan di sini -->
+            </ul>
+        </aside>
+    </div>
+
+    <script>
+        // JavaScript Logic
+        const BETTING_WINDOW = 'BETTING_WINDOW';
+        const FLYING = 'FLYING';
+        const CRASHED = 'CRASHED';
+        const ROUND_PREPARE_TIME = 11; // Detik
+        const TIME_BETWEEN_ROUNDS = 3; // Detik
+        const MAX_HISTORY_ITEMS = 10;
+
+        let gameState = BETTING_WINDOW;
+        let currentMultiplier = 1.00;
+        let betAmount = 1000;
+        let balance = 100000;
+        let targetCrashMultiplier = 0;
+        let startTime = 0;
+        let graphPoints = [];
+        let playerHasBet = false;
+        let cashedOutMultiplier = 0;
+
+        // DOM References
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const multiplierDisplay = document.getElementById('multiplier-display');
+        const balanceDisplay = document.getElementById('balance');
+        const betAmountInput = document.getElementById('bet-amount');
+        const placeBetButton = document.getElementById('place-bet-button');
+        const cashOutButton = document.getElementById('cash-out-button');
+        const statusMessage = document.getElementById('status-message');
+        const historyList = document.getElementById('history-list');
+
+        // Update Balance Display
+        function updateBalanceDisplay() {
+            balanceDisplay.textContent = balance.toFixed(2);
+        }
+
+        // Resize Canvas
+        function resizeCanvas() {
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            if (gameState !== FLYING) { // Only redraw if game is not running
+                drawGame();
+            }
+        }
+
+        // Draw Game
+        function drawGame() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Background
+            ctx.fillStyle = '#000'; // Dark background
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Grid lines and labels
+            const numVerticalLines = 5;
+            const numHorizontalLines = 5;
+
+            ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+            ctx.fillStyle = 'rgba(255,255,255,0.5)';
+
+            // Vertical Grid Lines (Time)
+            for (let i = 1; i < numVerticalLines; i++) {
+                const x = i * (canvas.width / numVerticalLines);
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+
+                // Time Labels (adjust as needed)
+                ctx.fillText(`${(i * 2)}s`, x - 10, canvas.height - 5); // Time in seconds, adjust interval
+            }
+
+            // Horizontal Grid Lines (Multiplier - Logarithmic Scale)
+            for (let i = 0; i <= numHorizontalLines; i++) {
+                const multiplier = Math.pow(10, i / numHorizontalLines); // Calculate multiplier value
+                const y = canvas.height - (Math.log10(multiplier) / Math.log10(10)) * canvas.height;
+
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+
+                // Multiplier Labels
+                ctx.fillText(`${multiplier.toFixed(0)}x`, 5, y - 5);
+            }
+
+            // Draw Graph Line
+            ctx.beginPath();
+            ctx.strokeStyle = '#4CAF50'; // Green line
+            ctx.lineWidth = 2;
+
+            if (graphPoints.length > 0) {
+                ctx.moveTo(graphPoints[0].x, graphPoints[0].y);
+                for (let i = 1; i < graphPoints.length; i++) {
+                    ctx.lineTo(graphPoints[i].x, graphPoints[i].y);
+                }
+            }
+            ctx.stroke();
+        }
+
+        // Reset for New Round
+        function resetForNewRound() {
+            gameState = BETTING_WINDOW;
+            currentMultiplier = 1.00;
+            targetCrashMultiplier = 0;
+            startTime = 0;
+            graphPoints = [];
+            playerHasBet = false;
+            cashedOutMultiplier = 0;
+
+            multiplierDisplay.classList.remove('crashed');
+            betAmountInput.disabled = false;
+            placeBetButton.disabled = false;
+            cashOutButton.disabled = true;
+
+            let timeLeft = ROUND_PREPARE_TIME;
+            statusMessage.textContent = `Babak baru dalam ${timeLeft} detik. Pasang taruhanmu!`;
+
+            const countdownInterval = setInterval(() => {
+                timeLeft--;
+                statusMessage.textContent = `Babak baru dalam ${timeLeft} detik. Pasang taruhanmu!`;
+
+                if (timeLeft <= 0) {
+                    clearInterval(countdownInterval);
+                    startGame();
+                }
+            }, 1000);
+        }
+
+        // Generate Crash Multiplier
+        function generateCrashMultiplier() {
+            // Bias towards lower multipliers
+            let rand = Math.random();
+            if (rand < 0.01) return 1.00;  // 1% chance of instant crash
+            let multiplier = Math.exp(rand * 3); // Exponential distribution
+            return Math.max(1.00, multiplier).toFixed(2);
+        }
+
+        // Start Game
+        function startGame() {
+            gameState = FLYING;
+            startTime = performance.now();
+            targetCrashMultiplier = parseFloat(generateCrashMultiplier());
+            graphPoints = [];
+
+            statusMessage.textContent = 'Game dimulai!';
+            placeBetButton.disabled = true;
+            cashOutButton.disabled = false;
+
+            animate();
+        }
+
+        // Calculate Current Multiplier (Exponential with Acceleration)
+        function calculateCurrentMultiplier(elapsedSeconds) {
+            // Modified exponential growth
+            let acceleration = 0.05; // Rate of acceleration
+            let baseGrowth = 0.02;   // Base growth rate
+
+            let multiplier = 1 + (baseGrowth * elapsedSeconds) + (0.5 * acceleration * elapsedSeconds * elapsedSeconds);
+            return parseFloat(multiplier.toFixed(2));
+        }
+
+        // Animate
+        function animate(timestamp) {
+            if (gameState !== FLYING) return;
+
+            const elapsedSeconds = (timestamp - startTime) / 1000;
+            currentMultiplier = calculateCurrentMultiplier(elapsedSeconds);
+
+            multiplierDisplay.textContent = `${currentMultiplier}x`;
+
+            // Add new point to graph
+            const x = (elapsedSeconds / 10) * canvas.width; //10 adalah perkiraan total waktu
+            const y = canvas.height - (Math.log10(currentMultiplier) / Math.log10(10)) * canvas.height; // Log scale
+            graphPoints.push({ x: x, y: y });
+
+            drawGame();
+
+            if (currentMultiplier >= targetCrashMultiplier) {
+                endGame(targetCrashMultiplier);
+                return;
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        // End Game
+        function endGame(finalMultiplier) {
+            gameState = CRASHED;
+            statusMessage.textContent = `CRASH! Multiplier: ${finalMultiplier}x`;
+            multiplierDisplay.classList.add('crashed');
+
+            if (playerHasBet && cashedOutMultiplier > 0) {
+                // Player cashed out, so their winnings are already in their balance.
+                statusMessage.textContent += ` Kamu Menang!`;
+            } else if (playerHasBet && cashedOutMultiplier === 0) {
+                // Player didn't cash out, so they lose their bet.  Balance was already updated when they placed the bet.
+                statusMessage.textContent += ` Kamu Kalah!`;
+            }
+
+            updateHistory(finalMultiplier);
+
+            setTimeout(resetForNewRound, TIME_BETWEEN_ROUNDS * 1000);
+        }
+
+        // Place Bet Button Event Listener
+        placeBetButton.addEventListener('click', () => {
+            betAmount = parseFloat(betAmountInput.value);
+
+            if (isNaN(betAmount) || betAmount <= 0) {
+                alert('Jumlah taruhan harus lebih besar dari 0.');
+                return;
+            }
+
+            if (betAmount > balance) {
+                alert('Saldo tidak mencukupi.');
+                return;
+            }
+
+            balance -= betAmount;
+            updateBalanceDisplay();
+            statusMessage.textContent = 'Taruhan dipasang. Semoga beruntung!';
+            playerHasBet = true;
+            betAmountInput.disabled = true; // Disable input after bet
+            placeBetButton.disabled = true;  //Disable Place bet button after bet.
+        });
+
+        // Cash Out Button Event Listener
+        cashOutButton.addEventListener('click', () => {
+            if (gameState === FLYING && playerHasBet && cashedOutMultiplier === 0) {
+                cashedOutMultiplier = currentMultiplier;
+                let winnings = betAmount * cashedOutMultiplier;
+                balance += winnings;
+                updateBalanceDisplay();
+                statusMessage.textContent = `Cash Out di ${cashedOutMultiplier}xKamu Menang ${winnings.toFixed(2)}!`;
+                cashOutButton.disabled = true;
+            }
+        });
+
+        // Update History
+        function updateHistory(multiplierValue) {
+            const listItem = document.createElement('li');
+            listItem.textContent = `${multiplierValue}x`;
+
+            if (multiplierValue >= 2) {
+                listItem.classList.add('green');
+            } else {
+                listItem.classList.add('red');
+            }
+
+            historyList.prepend(listItem); // Add to the beginning of the list
+
+            // Keep only the last MAX_HISTORY_ITEMS items
+            if (historyList.children.length > MAX_HISTORY_ITEMS) {
+                historyList.removeChild(historyList.lastChild);
+            }
+        }
+
+        // Initial Setup
+        window.addEventListener('load', () => {
+            resizeCanvas();
+            updateBalanceDisplay();
+            resetForNewRound();
+        });
+
+        window.addEventListener('resize', resizeCanvas);
+    </script>
+</body>
+  </html>
